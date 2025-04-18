@@ -8,8 +8,8 @@ function getCurrentSubtitle() {
     .join(" ");
 }
 
-// Create a tooltip to show synonyms
-function showSynonymsTooltip(word, synonyms, x, y) {
+// Create a tooltip to show word information
+function showWordInfoTooltip(word, synonyms, definitions, x, y) {
   const existing = document.getElementById("wordwise-tooltip");
   if (existing) existing.remove();
 
@@ -24,8 +24,12 @@ function showSynonymsTooltip(word, synonyms, x, y) {
   tooltip.style.borderRadius = "5px";
   tooltip.style.zIndex = 10000;
   tooltip.style.boxShadow = "0 2px 10px rgba(0,0,0,0.2)";
-  tooltip.style.maxWidth = "300px";
+  tooltip.style.maxWidth = "350px";
+  tooltip.style.maxHeight = "400px";
+  tooltip.style.overflowY = "auto";
+  tooltip.style.fontSize = "14px";
 
+  // Word header
   const header = document.createElement("h3");
   header.innerText = word;
   header.style.margin = "0 0 10px 0";
@@ -33,27 +37,112 @@ function showSynonymsTooltip(word, synonyms, x, y) {
   header.style.borderBottom = "1px solid #eee";
   tooltip.appendChild(header);
 
+  // Save button
+  const saveBtn = document.createElement("button");
+  saveBtn.innerText = "★ Save";
+  saveBtn.style.position = "absolute";
+  saveBtn.style.top = "10px";
+  saveBtn.style.right = "35px";
+  saveBtn.style.background = "#f0f0f0";
+  saveBtn.style.border = "none";
+  saveBtn.style.borderRadius = "3px";
+  saveBtn.style.padding = "2px 8px";
+  saveBtn.style.cursor = "pointer";
+  saveBtn.style.fontSize = "12px";
+  saveBtn.onclick = () => {
+    saveWordToFavorites(word, synonyms, definitions);
+    saveBtn.innerText = "✓ Saved";
+    saveBtn.style.background = "#deffde";
+    saveBtn.disabled = true;
+  };
+  tooltip.appendChild(saveBtn);
+
+  // Definitions section
+  if (definitions && definitions.length > 0) {
+    const definitionsContainer = document.createElement("div");
+    definitionsContainer.style.marginBottom = "15px";
+
+    const defTitle = document.createElement("h4");
+    defTitle.innerText = "Definitions";
+    defTitle.style.margin = "0 0 5px 0";
+    defTitle.style.fontWeight = "bold";
+    definitionsContainer.appendChild(defTitle);
+
+    definitions.forEach((def, index) => {
+      if (index > 2) return; // Limit to 3 definitions
+
+      const defItem = document.createElement("div");
+      defItem.style.marginBottom = "8px";
+
+      const partOfSpeech = document.createElement("em");
+      partOfSpeech.innerText = def.partOfSpeech || "";
+      partOfSpeech.style.color = "#666";
+      partOfSpeech.style.marginRight = "5px";
+      defItem.appendChild(partOfSpeech);
+
+      const definition = document.createElement("span");
+      definition.innerText = def.definition;
+      defItem.appendChild(definition);
+
+      if (def.example) {
+        const example = document.createElement("div");
+        example.innerText = `"${def.example}"`;
+        example.style.fontStyle = "italic";
+        example.style.color = "#666";
+        example.style.marginTop = "3px";
+        example.style.fontSize = "13px";
+        defItem.appendChild(example);
+      }
+
+      definitionsContainer.appendChild(defItem);
+    });
+
+    tooltip.appendChild(definitionsContainer);
+  }
+
+  // Synonyms section
   if (synonyms && synonyms.length > 0) {
+    const synonymsContainer = document.createElement("div");
+
+    const synTitle = document.createElement("h4");
+    synTitle.innerText = "Synonyms";
+    synTitle.style.margin = "0 0 5px 0";
+    synTitle.style.fontWeight = "bold";
+    synonymsContainer.appendChild(synTitle);
+
     const list = document.createElement("div");
-    synonyms.slice(0, 5).forEach((synonym) => {
+    list.style.display = "flex";
+    list.style.flexWrap = "wrap";
+    list.style.gap = "5px";
+
+    synonyms.slice(0, 8).forEach((synonym) => {
       const item = document.createElement("div");
       item.innerText = synonym;
-      item.style.padding = "3px 0";
+      item.style.padding = "3px 8px";
+      item.style.background = "#f0f0f0";
+      item.style.borderRadius = "3px";
       item.style.cursor = "pointer";
+      item.style.fontSize = "13px";
       item.onclick = () => {
-        // Maybe copy to clipboard or replace in search?
+        // Copy to clipboard
         navigator.clipboard.writeText(synonym);
         item.innerText = `${synonym} ✓`;
+        item.style.background = "#deffde";
         setTimeout(() => {
           item.innerText = synonym;
+          item.style.background = "#f0f0f0";
         }, 1000);
       };
       list.appendChild(item);
     });
-    tooltip.appendChild(list);
-  } else {
+
+    synonymsContainer.appendChild(list);
+    tooltip.appendChild(synonymsContainer);
+  } else if (!definitions || definitions.length === 0) {
     const noResults = document.createElement("div");
-    noResults.innerText = "No synonyms found";
+    noResults.innerText = "No information found for this word.";
+    noResults.style.fontStyle = "italic";
+    noResults.style.color = "#666";
     tooltip.appendChild(noResults);
   }
 
@@ -70,6 +159,15 @@ function showSynonymsTooltip(word, synonyms, x, y) {
 
   document.body.appendChild(tooltip);
 
+  // Adjust position if tooltip would go off screen
+  const tooltipRect = tooltip.getBoundingClientRect();
+  if (tooltipRect.right > window.innerWidth) {
+    tooltip.style.left = window.innerWidth - tooltipRect.width - 10 + "px";
+  }
+  if (tooltipRect.bottom > window.innerHeight) {
+    tooltip.style.top = window.innerHeight - tooltipRect.height - 10 + "px";
+  }
+
   // Close on click outside
   document.addEventListener(
     "click",
@@ -80,6 +178,32 @@ function showSynonymsTooltip(word, synonyms, x, y) {
     },
     { once: true }
   );
+}
+
+function saveWordToFavorites(word, synonyms, definitions) {
+  chrome.storage.local.get(["favoriteWords"], function (result) {
+    const favorites = result.favoriteWords || [];
+
+    // Check if word already exists in favorites
+    const existingIndex = favorites.findIndex(
+      (item) => item.word.toLowerCase() === word.toLowerCase()
+    );
+
+    if (existingIndex === -1) {
+      // Add to favorites
+      favorites.push({
+        word,
+        synonyms,
+        definitions,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Save updated favorites
+      chrome.storage.local.set({ favoriteWords: favorites });
+
+      console.log(`Word "${word}" added to favorites`);
+    }
+  });
 }
 
 // Render your custom UI with clickable words
@@ -133,7 +257,7 @@ function renderSubtitleOverlay(text) {
 
       // Send message to background script
       chrome.runtime.sendMessage({
-        type: "FETCH_SYNONYMS",
+        type: "FETCH_WORD_INFO",
         word: part.replace(/[^a-zA-Z]/g, ""), // Clean the word from punctuation
       });
     };
@@ -162,7 +286,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "SHOW_SYNONYMS") {
+  if (message.type === "SHOW_WORD_INFO") {
     // Get the clicked word element position
     const wordElements = document.querySelectorAll("#wordwise-overlay span");
     let targetElement = null;
@@ -176,17 +300,19 @@ chrome.runtime.onMessage.addListener((message) => {
 
     if (targetElement) {
       const rect = targetElement.getBoundingClientRect();
-      showSynonymsTooltip(
+      showWordInfoTooltip(
         message.word,
         message.synonyms,
+        message.definitions,
         rect.left,
         rect.top - 10
       );
     } else {
       // Fallback position if element not found
-      showSynonymsTooltip(
+      showWordInfoTooltip(
         message.word,
         message.synonyms,
+        message.definitions,
         window.innerWidth / 2,
         window.innerHeight / 2
       );
@@ -194,12 +320,16 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Keep checking for updated subtitles
-setInterval(() => {
+// Keep checking for updated subtitles (with optimized interval)
+let lastSubtitle = "";
+let checkInterval = setInterval(() => {
   if (!extensionEnabled) return;
 
   const subtitle = getCurrentSubtitle();
-  if (subtitle) renderSubtitleOverlay(subtitle);
+  if (subtitle && subtitle !== lastSubtitle) {
+    lastSubtitle = subtitle;
+    renderSubtitleOverlay(subtitle);
+  }
 }, 1000);
 
 // Initialize when script is loaded

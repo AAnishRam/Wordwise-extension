@@ -2,11 +2,11 @@
   "manifest_version": 3,
   "name": "Wordwise",
   "version": "1.0.0",
-  "description": "Wordwise is a browser extension that helps you learn new words while you browse the web. It provides definitions, synonyms.",
+  "description": "Wordwise helps you learn new words while browsing the web by providing definitions, synonyms, and more.",
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": ["scripting", "activeTab"],
+  "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": ["https://www.youtube.com/*"],
   "background": {
     "service_worker": "background.js"
