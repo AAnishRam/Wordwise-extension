@@ -1,11 +1,5 @@
-span.onclick = () => {
-  console.log("🔍 Clicked word:", word);
-  // Send message to background script
-  chrome.runtime.sendMessage({
-    type: "FETCH_SYNONYMS",
-    word: word.replace(/[^a-zA-Z]/g, ""), // Clean the word from punctuation
-  });
-};
+// Global state
+let extensionEnabled = true;
 
 function getCurrentSubtitle() {
   const segments = document.querySelectorAll(".ytp-caption-segment");
@@ -13,69 +7,6 @@ function getCurrentSubtitle() {
     .map((s) => s.innerText)
     .join(" ");
 }
-function renderSubtitleOverlay(text) {
-  const existing = document.getElementById("wordwise-overlay");
-  if (existing) existing.remove();
-
-  const overlay = document.createElement("div");
-  overlay.id = "wordwise-overlay";
-  overlay.style.position = "fixed";
-  overlay.style.bottom = "100px";
-  overlay.style.left = "50%";
-  overlay.style.transform = "translateX(-50%)";
-  overlay.style.background = "#000000aa";
-  overlay.style.color = "white";
-  overlay.style.padding = "10px";
-  overlay.style.borderRadius = "8px";
-  overlay.style.zIndex = 9999;
-  overlay.style.fontSize = "20px";
-
-  // Split by spaces but keep punctuation with the words
-  text.match(/[\w']+|[.,!?;]/g)?.forEach((part) => {
-    // Skip punctuation-only parts
-    if (/^[.,!?;]$/.test(part)) {
-      const span = document.createElement("span");
-      span.innerText = part + " ";
-      overlay.appendChild(span);
-      return;
-    }
-
-    const span = document.createElement("span");
-    span.innerText = part + " ";
-    span.style.cursor = "pointer";
-    span.style.borderBottom = "1px dotted #ffffff";
-    span.style.transition = "color 0.2s";
-    span.style.padding = "0 2px";
-
-    span.onmouseover = () => {
-      span.style.color = "#ffdd00";
-    };
-
-    span.onmouseout = () => {
-      span.style.color = "white";
-    };
-
-    span.onclick = (e) => {
-      e.stopPropagation();
-      console.log("🔍 Clicked word:", part);
-
-      // Send message to background script
-      chrome.runtime.sendMessage({
-        type: "FETCH_SYNONYMS",
-        word: part.replace(/[^a-zA-Z]/g, ""), // Clean the word from punctuation
-      });
-    };
-
-    overlay.appendChild(span);
-  });
-
-  document.body.appendChild(overlay);
-}
-// Keep checking for updated subtitles
-setInterval(() => {
-  const subtitle = getCurrentSubtitle();
-  if (subtitle) renderSubtitleOverlay(subtitle);
-}, 1000);
 
 // Create a tooltip to show synonyms
 function showSynonymsTooltip(word, synonyms, x, y) {
@@ -151,6 +82,84 @@ function showSynonymsTooltip(word, synonyms, x, y) {
   );
 }
 
+// Render your custom UI with clickable words
+function renderSubtitleOverlay(text) {
+  const existing = document.getElementById("wordwise-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "wordwise-overlay";
+  overlay.style.position = "fixed";
+  overlay.style.bottom = "100px";
+  overlay.style.left = "50%";
+  overlay.style.transform = "translateX(-50%)";
+  overlay.style.background = "#000000aa";
+  overlay.style.color = "white";
+  overlay.style.padding = "10px";
+  overlay.style.borderRadius = "8px";
+  overlay.style.zIndex = 9999;
+  overlay.style.fontSize = "20px";
+
+  // Split by spaces but keep punctuation with the words
+  const words = text.match(/[\w']+|[.,!?;]/g) || [];
+
+  words.forEach((part) => {
+    // Skip punctuation-only parts
+    if (/^[.,!?;]$/.test(part)) {
+      const span = document.createElement("span");
+      span.innerText = part + " ";
+      overlay.appendChild(span);
+      return;
+    }
+
+    const span = document.createElement("span");
+    span.innerText = part + " ";
+    span.style.cursor = "pointer";
+    span.style.borderBottom = "1px dotted #ffffff";
+    span.style.transition = "color 0.2s";
+    span.style.padding = "0 2px";
+
+    span.onmouseover = () => {
+      span.style.color = "#ffdd00";
+    };
+
+    span.onmouseout = () => {
+      span.style.color = "white";
+    };
+
+    span.onclick = (e) => {
+      e.stopPropagation();
+      console.log("🔍 Clicked word:", part);
+
+      // Send message to background script
+      chrome.runtime.sendMessage({
+        type: "FETCH_SYNONYMS",
+        word: part.replace(/[^a-zA-Z]/g, ""), // Clean the word from punctuation
+      });
+    };
+
+    overlay.appendChild(span);
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// Listen for toggle messages from popup
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "TOGGLE_EXTENSION") {
+    extensionEnabled = message.enabled;
+
+    // Remove overlay if disabled
+    if (!extensionEnabled) {
+      const overlay = document.getElementById("wordwise-overlay");
+      if (overlay) overlay.remove();
+
+      const tooltip = document.getElementById("wordwise-tooltip");
+      if (tooltip) tooltip.remove();
+    }
+  }
+});
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "SHOW_SYNONYMS") {
@@ -185,29 +194,13 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-// Global state
-let extensionEnabled = true;
-
-// Listen for toggle messages
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "TOGGLE_EXTENSION") {
-    extensionEnabled = message.enabled;
-
-    // Remove overlay if disabled
-    if (!extensionEnabled) {
-      const overlay = document.getElementById("wordwise-overlay");
-      if (overlay) overlay.remove();
-
-      const tooltip = document.getElementById("wordwise-tooltip");
-      if (tooltip) tooltip.remove();
-    }
-  }
-});
-
-// Update the interval to respect enabled state
+// Keep checking for updated subtitles
 setInterval(() => {
   if (!extensionEnabled) return;
 
   const subtitle = getCurrentSubtitle();
   if (subtitle) renderSubtitleOverlay(subtitle);
 }, 1000);
+
+// Initialize when script is loaded
+console.log("WordWise extension initialized");

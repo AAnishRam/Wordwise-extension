@@ -15,6 +15,10 @@ export default defineConfig({
           src: "background.js",
           dest: "", // copy to root of dist
         },
+        {
+          src: "public/manifest.json",
+          dest: "", // copy to root of dist
+        },
       ],
     }),
   ],

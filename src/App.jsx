@@ -1,19 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 function App() {
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("Active");
   const [isEnabled, setIsEnabled] = useState(true);
 
   // Toggle extension functionality
   const toggleExtension = () => {
     const newState = !isEnabled;
     setIsEnabled(newState);
+
+    // Send message to active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        type: "TOGGLE_EXTENSION",
-        enabled: newState,
-      });
+      if (tabs[0] && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          type: "TOGGLE_EXTENSION",
+          enabled: newState,
+        });
+      }
     });
+
     setStatus(newState ? "Active" : "Disabled");
   };
 
@@ -50,12 +55,18 @@ function App() {
       margin: "4px 2px",
       cursor: "pointer",
       borderRadius: "4px",
+      width: "100%",
     },
     footer: {
       marginTop: "20px",
       fontSize: "12px",
       color: "#666",
       textAlign: "center",
+    },
+    instructions: {
+      fontSize: "14px",
+      lineHeight: "1.4",
+      marginBottom: "15px",
     },
   };
 
@@ -66,7 +77,10 @@ function App() {
         <div style={styles.status}>{status}</div>
       </div>
 
-      <p>Click on any word in YouTube subtitles to see synonyms.</p>
+      <div style={styles.instructions}>
+        <p>Click on any word in YouTube subtitles to see synonyms.</p>
+        <p>Make sure captions are turned on in the YouTube player.</p>
+      </div>
 
       <button style={styles.button} onClick={toggleExtension}>
         {isEnabled ? "Disable" : "Enable"} Extension
